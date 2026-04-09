@@ -1,0 +1,20 @@
+{
+  "name": "movie1-api-worker",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
+    "hono": "^4.12.12",
+    "jose": "^6.2.2",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260409.1",
+    "wrangler": "^4.4.0"
+  }
+}

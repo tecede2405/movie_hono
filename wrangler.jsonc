@@ -1,0 +1,17 @@
+{
+  "name": "movie1-api-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+
+  "d1_databases": [
+    {
+      "binding": "movie_db",
+      "database_name": "movie-db",
+      "database_id": "0cdbe095-3f70-41cb-87bc-3f0920ec2901"
+    }
+  ],
+
+  "vars": {
+    "JWT_SECRET": "abc123"
+  }
+}
