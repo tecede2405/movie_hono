@@ -1,26 +1,49 @@
 import { saveWatchHistory, getWatchHistory } from '../services/history.service'
 
 export const saveHistoryHandler = async (c: any) => {
-  const user = c.get('user')
-  const body = await c.req.json()
+  try {
+    const user = c.get('user')
 
-  const result = await saveWatchHistory(
-    c.env.movie_db,
-    user.userId,
-    body
-  )
+    if (!user || !user.userId) {
+      return c.json({ success: false, message: "Unauthorized" }, 401)
+    }
 
-  return c.json({ success: true, result })
+    const body = await c.req.json()
+
+    await saveWatchHistory(c.env.movie_db, user.userId, body)
+
+    return c.json({ success: true })
+
+  } catch (err) {
+    console.log("SAVE HISTORY ERROR:", err)
+    return c.json({ success: false }, 500)
+  }
 }
 
 
 export const getHistoryHandler = async (c: any) => {
-  const user = c.get('user')
+  try {
+    const user = c.get('user')
 
-  const history = await getWatchHistory(
-    c.env.movie_db,
-    user.userId
-  )
+    if (!user) {
+      return c.json({ success: false, message: "Unauthorized" }, 401)
+    }
 
-  return c.json(history)
+    const history = await getWatchHistory(
+      c.env.movie_db,
+      user.userId
+    )
+
+    return c.json({
+      success: true,
+      data: history
+    })
+
+  } catch (err) {
+  console.log("GET HISTORY ERROR:", err)
+  return c.json({
+    success: false,
+    error: err instanceof Error ? err.message : String(err)
+  }, 500)
+}
 }

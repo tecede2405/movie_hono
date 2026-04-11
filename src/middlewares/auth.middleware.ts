@@ -11,18 +11,18 @@ export const authMiddleware = async (c: any, next: any) => {
 
     const token = authHeader.split(' ')[1]
 
-    if (!token) {
-      return c.json({ message: 'Invalid token' }, 401)
-    }
-
     const secret = new TextEncoder().encode(c.env.JWT_SECRET)
 
     const { payload } = await jwtVerify(token, secret)
 
-    c.set('user', payload)
+    c.set('user', {
+      userId: payload.userId,   // ✅ FIX HERE
+      role: payload.role
+    })
 
-    await next()
+    return await next()
   } catch (err) {
+    console.log("JWT ERROR:", err)
     return c.json({ message: 'Unauthorized' }, 401)
   }
 }

@@ -1,40 +1,56 @@
 export const saveWatchHistory = async (db: any, userId: number, body: any) => {
-  // 1. insert hoặc update
   await db.prepare(`
-    INSERT INTO watch_history (user_id, movie_path, episode)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id, movie_path)
-    DO UPDATE SET
-      episode = excluded.episode,
-      updated_at = CURRENT_TIMESTAMP
-  `).bind(
-    userId,
-    body.movie_path,
-    body.episode
-  ).run()
-
-  // 2. giữ tối đa 15 phim
-  await db.prepare(`
-    DELETE FROM watch_history
-    WHERE id NOT IN (
-      SELECT id FROM watch_history
-      WHERE user_id = ?
-      ORDER BY updated_at DESC
-      LIMIT 15
-    )
-    AND user_id = ?
-  `).bind(userId, userId).run()
-}
+  INSERT INTO watch_history (
+    user_id,
+    movie_path,
+    server,
+    episode,
+    movie_name,
+    image
+  )
+  VALUES (?, ?, ?, ?, ?, ?)
+  ON CONFLICT(user_id, movie_path, server)
+  DO UPDATE SET
+    episode = excluded.episode,
+    movie_name = excluded.movie_name,
+    image = excluded.image,
+    updated_at = CURRENT_TIMESTAMP
+`)
+.bind(
+  userId,
+  body.movie_path,
+  body.server,
+  body.episode,
+  body.movie_name,
+  body.image
+)
+.run();
+};
 
 
 export const getWatchHistory = async (db: any, userId: number) => {
   const { results } = await db.prepare(`
-    SELECT h.*, m.title, m.image, m.thumb
-    FROM watch_history h
-    LEFT JOIN movies m ON h.movie_path = m.path
-    WHERE h.user_id = ?
-    ORDER BY h.updated_at DESC
-  `).bind(userId).all()
+    SELECT 
+      w.id,
+      w.movie_path,
+      w.server,
+      w.episode,
+      w.updated_at,
+      COALESCE(w.movie_name, m.title) as movie_name,
+      COALESCE(w.image, m.image) as image
+    FROM watch_history w
+    LEFT JOIN movies m ON m.id = (
+      SELECT id FROM movies 
+      WHERE path = w.movie_path 
+      ORDER BY (image LIKE 'http%') DESC, created_at DESC 
+      LIMIT 1
+    )
+    WHERE w.user_id = ?
+    ORDER BY w.updated_at DESC
+    LIMIT 15
+  `)
+  .bind(userId)
+  .all();
 
-  return results
-}
+  return results;
+};

@@ -10,7 +10,11 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
-app.use('*', cors())
+app.use('*', cors({
+  origin: '*',
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE']
+}))
 app.route('/', movieRoutes) 
 app.route('/auth', userRoutes)
 app.route('/', commentRoute)

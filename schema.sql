@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS movies (
   image TEXT,
   thumb TEXT,
   video TEXT,
-  path TEXT UNIQUE,
+  path TEXT,
   episode_current TEXT,
   content TEXT,
   lang TEXT,

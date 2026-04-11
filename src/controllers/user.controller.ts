@@ -1,4 +1,4 @@
-import { createUser, findUserByUsername } from '../services/user.service'
+import { createUser, findUserByUsername, getAllUsers } from '../services/user.service'
 import bcrypt from 'bcryptjs'
 import { SignJWT } from 'jose'
 
@@ -51,4 +51,9 @@ export const login = async (c: any) => {
   } catch (err) {
     return c.json({ message: 'Login failed' }, 500)
   }
+}
+
+export const getUsers = async (c: any) => {
+  const users = await getAllUsers(c.env.movie_db)
+  return c.json(users)
 }
