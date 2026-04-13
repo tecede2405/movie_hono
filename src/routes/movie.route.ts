@@ -2,9 +2,12 @@ import { Hono } from 'hono'
 import {
   createMovie,
   updateMovie,
-  deleteMovie
+  deleteMovie,
+  getAllMovies,
+  getMoviesByCategory,
+  getMovieByPath
 } from '../controllers/movie.controller'
-import { getMoviesByCategory, getMovieByPath } from '../services/movie.service'
+
 import type { D1Database } from '@cloudflare/workers-types'
 import { authMiddleware,  adminMiddleware } from '../middlewares/auth.middleware'
 type Bindings = {
@@ -12,19 +15,11 @@ type Bindings = {
 }
 const app = new Hono<{ Bindings: Bindings }>()
 
-app.get('/films/:category', async (c) => {
-  const movies = await getMoviesByCategory(c.req.param('category'), c.env.movie_db)
-  return c.json(movies)
-})
+app.get('/movies', getAllMovies)
 
-app.get('/movie/:path', async (c) => {
-  try {
-    const movie = await getMovieByPath(c.req.param('path'), c.env.movie_db)
-    return c.json(movie)
-  } catch (err: any) {
-    return c.json({ message: err.message }, 404)
-  }
-})
+app.get('/films/:category', getMoviesByCategory)
+
+app.get('/movie/:path', getMovieByPath)
 
 app.post('/movies', authMiddleware, adminMiddleware, createMovie)
 app.put('/movies/:id', authMiddleware, adminMiddleware, updateMovie)

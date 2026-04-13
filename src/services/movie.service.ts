@@ -23,16 +23,31 @@ export const getMovieByPath = async (path: string, db: any) => {
 
   return result
 }
+export const getAllMovies = async (db: any) => {
+  const count = await db.prepare(`
+    SELECT COUNT(*) as total FROM movies
+  `).first()
+
+  console.log("TOTAL MOVIES:", count)
+
+  const { results } = await db.prepare(`
+    SELECT * FROM movies
+    ORDER BY order_index ASC, created_at DESC
+  `).all()
+
+  return results
+}
 
 export const insertMovie = async (db: any, body: any) => {
   return db.prepare(`
     INSERT INTO movies (
-      title, image, thumb, video, path,
+      title, origin_name, image, thumb, video, path,
       episode_current, content, lang, category, order_index
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     body.title,
+    body.origin_name || null,
     body.image,
     body.thumb,
     body.video || null,
@@ -48,11 +63,22 @@ export const insertMovie = async (db: any, body: any) => {
 export const updateMovieById = async (db: any, id: string, body: any) => {
   return db.prepare(`
     UPDATE movies
-    SET title = ?, image = ?, thumb = ?, video = ?, path = ?, 
-        episode_current = ?, content = ?, lang = ?, category = ?, order_index = ?
+    SET 
+      title = ?, 
+      origin_name = ?, 
+      image = ?, 
+      thumb = ?, 
+      video = ?, 
+      path = ?, 
+      episode_current = ?, 
+      content = ?, 
+      lang = ?, 
+      category = ?, 
+      order_index = ?
     WHERE id = ?
   `).bind(
     body.title,
+    body.origin_name || null,
     body.image,
     body.thumb,
     body.video || null,

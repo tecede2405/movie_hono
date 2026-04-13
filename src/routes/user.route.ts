@@ -8,7 +8,7 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
-app.get('/users', authMiddleware, adminMiddleware, getUsers)
+app.get('/users', getUsers)
 app.post('/register', register)
 app.post('/login', login)
 
