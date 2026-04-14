@@ -27,6 +27,6 @@ CREATE TABLE IF NOT EXISTS comments (
   movie_path TEXT NOT NULL,
   user_id INTEGER NOT NULL,
   content TEXT NOT NULL,
-  parent_id INTEGER DEFAULT NULL, -- 🔥 reply vào comment khác
+  parent_id INTEGER DEFAULT NULL, --
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

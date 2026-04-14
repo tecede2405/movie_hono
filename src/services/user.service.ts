@@ -32,3 +32,21 @@ export const getAllUsers = async (db: any) => {
 
   return results
 }
+
+export const updateUser = async (db: any, userId: number, body: any) => {
+  const { display_name, avatar } = body;
+
+  return db.prepare(`
+    UPDATE users
+    SET 
+      display_name = COALESCE(?, display_name),
+      avatar = COALESCE(?, avatar)
+    WHERE id = ?
+  `)
+  .bind(
+      display_name ?? null,
+      avatar ?? null,
+      userId
+    )
+  .run();
+};
