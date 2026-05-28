@@ -5,6 +5,7 @@ import movieRoutes from './routes/movie.route'
 import userRoutes from './routes/user.route'
 import commentRoute from './routes/comment.route'
 import historyRoute from './routes/history.route'
+import donateRoute from "./routes/donate.route";
 type Bindings = {
   movie_db: D1Database
 }
@@ -19,6 +20,7 @@ app.route('/', movieRoutes)
 app.route('/auth', userRoutes)
 app.route('/', commentRoute)
 app.route('/', historyRoute)
+app.route("/donates", donateRoute);
 app.get('/', (c) => {
   return c.json({ message: 'API OK 🚀' })
 })

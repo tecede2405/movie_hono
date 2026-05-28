@@ -5,7 +5,8 @@ import {
   deleteMovie,
   getAllMovies,
   getMoviesByCategory,
-  getMovieByPath
+  searchMovies,
+  getMovieDetail
 } from '../controllers/movie.controller'
 
 import type { D1Database } from '@cloudflare/workers-types'
@@ -16,46 +17,19 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>()
 
 app.get('/movies', getAllMovies)
-
+app.get('/search', searchMovies)
 app.get('/films/:category', getMoviesByCategory)
 
-app.get('/movie/:path', getMovieByPath)
 
 app.post('/movies', authMiddleware, adminMiddleware, createMovie)
 app.put('/movies/:id', authMiddleware, adminMiddleware, updateMovie)
 app.delete('/movies/:id', authMiddleware, adminMiddleware, deleteMovie)
 
 // giữ nguyên cache logic
-app.get('/movie-detail/:path', async (c) => {
-  const path = c.req.param('path')
-  const cache = caches.default
-  const cacheKey = new Request(c.req.url)
+app.get(
+  '/movie-detail/:slug',
+  getMovieDetail
+)
 
-  let res = await cache.match(cacheKey)
-  if (res) return res
-
-  try {
-    const apiRes = await fetch(`https://phimapi.com/phim/${path}`)
-
-    if (!apiRes.ok) {
-      return c.json({ message: 'API ngoài lỗi' }, 500)
-    }
-
-    const data = await apiRes.json()
-
-    res = new Response(JSON.stringify(data), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 's-maxage=300'
-      }
-    })
-
-    await cache.put(cacheKey, res.clone())
-
-    return res
-  } catch {
-    return c.json({ message: 'Fetch failed' }, 500)
-  }
-})
 
 export default app

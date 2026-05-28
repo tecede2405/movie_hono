@@ -54,3 +54,29 @@ export const getWatchHistory = async (db: any, userId: number) => {
 
   return results;
 };
+
+export const deleteWatchHistory = async (
+  db: any,
+  userId: number,
+  historyId: string
+) => {
+  await db.prepare(`
+    DELETE FROM watch_history
+    WHERE id = ?
+    AND user_id = ?
+  `)
+  .bind(historyId, userId)
+  .run();
+};
+
+export const deleteAllWatchHistory = async (
+  db: any,
+  userId: number
+) => {
+  await db.prepare(`
+    DELETE FROM watch_history
+    WHERE user_id = ?
+  `)
+  .bind(userId)
+  .run();
+};

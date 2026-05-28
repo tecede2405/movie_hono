@@ -13,5 +13,9 @@
 
   "vars": {
     "JWT_SECRET": "abc123"
+  },
+  
+  "triggers": {
+    "crons": ["0 0 1 * *"]
   }
 }
