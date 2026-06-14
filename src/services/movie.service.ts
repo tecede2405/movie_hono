@@ -87,12 +87,16 @@ export const deleteMovieById = async (db: any, id: string) => {
 }
 
 // crawl 2 nguồn
+// crawl 3 nguồn
 const MOVIE_API = {
   nc: (slug: string) =>
     `https://phim.nguonc.com/api/film/${slug}`,
 
   kk: (slug: string) =>
     `https://phimapi.com/phim/${slug}`,
+
+  op: (slug: string) => 
+    `https://ophim1.com/phim/${slug}`,
 }
 
 const SEARCH_API = (
@@ -132,7 +136,6 @@ async function fetchSource(
   slug: string
 ) {
   try {
-
     const data: any = await fetchJson(
       MOVIE_API[source](slug)
     )
@@ -143,16 +146,13 @@ async function fetchSource(
     // nguonc
     if (source === 'nc') {
       movie = data?.movie || data;
-      // Bắt cả ở ngoài (data.episodes) lẫn ở trong (movie.episodes)
       episodes = data?.episodes || movie?.episodes || []; 
     }
 
-    // kkphim
-    if (source === 'kk') {
-
+    // kkphim & ophim dùng chung cấu trúc
+    if (source === 'kk' || source === 'op') {
       movie = data?.movie || {}
       episodes = data?.episodes || []
-
     }
 
     return {
@@ -164,7 +164,6 @@ async function fetchSource(
     }
 
   } catch (err: any) {
-
     return {
       source,
       success: false,
@@ -220,30 +219,24 @@ export const searchExternalMovie = async (
   }))
 }
 
-// MOVIE DETAIL
+
 /* =========================
    MOVIE DETAIL
 ========================= */
 
-// MOVIE DETAIL
-/* =========================
-   MOVIE DETAIL
-========================= */
 
-// MOVIE DETAIL
-/* =========================
-   MOVIE DETAIL
-========================= */
 
 export const getMovieDetailMultiSource = async (slug: string) => {
-  // 1. fetch song song từ 2 nguồn
-  const [ncResultFirst, kkResultFirst] = await Promise.all([
+  // 1. fetch song song từ 3 nguồn
+  const [ncResultFirst, kkResultFirst, opResultFirst] = await Promise.all([
     fetchSource("nc", slug),
     fetchSource("kk", slug),
+    fetchSource("op", slug),
   ]);
 
   let ncResult = ncResultFirst;
   let kkResult = kkResultFirst;
+  let opResult = opResultFirst;
 
   // --- MÁY QUÉT LỆCH PHIM (BẮT LỖI TRÙNG SLUG VỚI PHIM LẺ/OVA) ---
   const getEpCount = (movie: any, eps: any[]) => {
@@ -258,131 +251,119 @@ export const getMovieDetailMultiSource = async (slug: string) => {
 
   const kkTotalEps = getEpCount(kkResult.movie, kkResult.episodes);
   const ncTotalEps = getEpCount(ncResult.movie, ncResult.episodes);
+  const opTotalEps = getEpCount(opResult.movie, opResult.episodes);
 
-  // Nhận diện nếu 1 bên là phim bộ (>5 tập), 1 bên là phim lẻ (<=2 tập)
-  const isKkWrong = ncResult.success && kkResult.success && ncTotalEps > 5 && kkTotalEps <= 2;
-  const isNcWrong = kkResult.success && ncResult.success && kkTotalEps > 5 && ncTotalEps <= 2;
+  // Lấy ra số tập lớn nhất để làm chuẩn (đại diện cho phim bộ gốc)
+  const maxEps = Math.max(kkTotalEps, ncTotalEps, opTotalEps);
+
+  // Nhận diện nếu 1 bên là phim lẻ (<=2 tập) trong khi các bên khác là phim bộ (>5 tập)
+  const isKkWrong = kkResult.success && maxEps > 5 && kkTotalEps <= 2;
+  const isNcWrong = ncResult.success && maxEps > 5 && ncTotalEps <= 2;
+  const isOpWrong = opResult.success && maxEps > 5 && opTotalEps <= 2;
   // --------------------------------------------------------------
 
-  // 2. FALLBACK 1: KKPhim không có hoặc lấy nhầm phim lẻ
-  const badKkSlug = isKkWrong ? (kkResult.movie?.slug || slug) : null;
-  
-  if (
-    ncResult.success &&
-    (!kkResult.success || !kkResult.episodes?.length || isKkWrong)
-  ) {
-    const keywords = [
-      ncResult.movie?.name,
-      ncResult.movie?.origin_name,
-      ncResult.movie?.original_name,
-    ]
+  // Hàm helper sinh từ khóa tìm kiếm (dùng chung cho các fallback)
+  const generateKeywords = (movie: any) => {
+    return [movie?.name, movie?.origin_name, movie?.original_name]
       .filter(Boolean)
       .flatMap((x: string) => x.split(","))
       .map((x: string) => normalize(x))
       .filter(Boolean);
+  };
 
+  // 2. FALLBACK 1: KKPhim
+  const badKkSlug = isKkWrong ? (kkResult.movie?.slug || slug) : null;
+  if ((ncResult.success || opResult.success) && (!kkResult.success || !kkResult.episodes?.length || isKkWrong)) {
+    const refMovie = ncResult.movie || opResult.movie;
+    const keywords = generateKeywords(refMovie);
     let matched: any = null;
 
     for (const keyword of keywords) {
       try {
-        const searchData: any = await fetchJson(
-          `https://phimapi.com/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&limit=100`
-        );
-
+        const searchData: any = await fetchJson(`https://phimapi.com/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&limit=100`);
         const items = searchData?.items || searchData?.data?.items || [];
-
         matched = items.find((x: any) => {
           const itemSlug = x.slug || x.path;
-          // NẾU LÀ SLUG SAI -> BỎ QUA NGAY
           if (badKkSlug && itemSlug === badKkSlug) return false; 
-
           const name = normalize(x.name);
           const origin = normalize(x.origin_name || x.original_name);
-          return (
-            name.includes(keyword) || origin.includes(keyword) || keyword.includes(name) || keyword.includes(origin)
-          );
+          return name.includes(keyword) || origin.includes(keyword) || keyword.includes(name) || keyword.includes(origin);
         });
-
         if (matched) {
           const newKkResult = await fetchSource("kk", matched.slug);
-          if (newKkResult.success) {
-            kkResult = newKkResult;
-            break; // Tìm được phim đúng rồi thì thoát
-          }
+          if (newKkResult.success) { kkResult = newKkResult; break; }
         }
-      } catch {
-        // ignore error
-      }
+      } catch {}
     }
   }
 
-  // 3. FALLBACK 2: Nguồn C không có hoặc lấy nhầm phim lẻ (Case Đảo Hải Tặc)
+  // 3. FALLBACK 2: Nguồn C
   const badNcSlug = isNcWrong ? (ncResult.movie?.slug || slug) : null;
-
-  if (
-    kkResult.success &&
-    (!ncResult.success || !ncResult.episodes?.length || isNcWrong)
-  ) {
-    const keywords = [
-      kkResult.movie?.name,
-      kkResult.movie?.origin_name,
-    ]
-      .filter(Boolean)
-      .flatMap((x: string) => x.split(","))
-      .map((x: string) => normalize(x))
-      .filter(Boolean);
-
+  if ((kkResult.success || opResult.success) && (!ncResult.success || !ncResult.episodes?.length || isNcWrong)) {
+    const refMovie = kkResult.movie || opResult.movie;
+    const keywords = generateKeywords(refMovie);
     let matched: any = null;
 
     for (const keyword of keywords) {
       try {
-        const searchData: any = await fetchJson(
-          `https://phim.nguonc.com/api/films/search?keyword=${encodeURIComponent(keyword)}`
-        );
-
+        const searchData: any = await fetchJson(`https://phim.nguonc.com/api/films/search?keyword=${encodeURIComponent(keyword)}`);
         const items = searchData?.items || searchData?.data || [];
-
         matched = items.find((x: any) => {
           const itemSlug = x.slug || x.path;
-          // NẾU LÀ SLUG BỊ SAI (vd: dao-hai-tac của Nguồn C) -> BỎ QUA ĐỂ ĐI TÌM "ONE PIECE"
           if (badNcSlug && itemSlug === badNcSlug) return false;
-
           const name = normalize(x.name || x.title);
           const origin = normalize(x.original_name || x.origin_name);
-          return (
-            name.includes(keyword) || origin.includes(keyword) || keyword.includes(name) || keyword.includes(origin)
-          );
+          return name.includes(keyword) || origin.includes(keyword) || keyword.includes(name) || keyword.includes(origin);
         });
-
         if (matched) {
           const newNcResult = await fetchSource("nc", matched.slug || matched.path);
-          if (newNcResult.success) {
-            ncResult = newNcResult;
-            break; // Tìm được phim đúng rồi thì thoát
-          }
+          if (newNcResult.success) { ncResult = newNcResult; break; }
         }
-      } catch {
-        // ignore error
-      }
+      } catch {}
     }
   }
 
-  // 4. KIỂM TRA KẾT QUẢ CUỐI CÙNG
-  const successResults = [kkResult, ncResult].filter((x) => x.success);
-  if (!successResults.length) {
-    throw new Error("Movie not found");
+  // 4. FALLBACK 3: Ophim (MỚI)
+  const badOpSlug = isOpWrong ? (opResult.movie?.slug || slug) : null;
+  if ((kkResult.success || ncResult.success) && (!opResult.success || !opResult.episodes?.length || isOpWrong)) {
+    const refMovie = kkResult.movie || ncResult.movie;
+    const keywords = generateKeywords(refMovie);
+    let matched: any = null;
+
+    for (const keyword of keywords) {
+      try {
+        const searchData: any = await fetchJson(`https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&limit=100`);
+        const items = searchData?.items || searchData?.data?.items || [];
+        matched = items.find((x: any) => {
+          const itemSlug = x.slug || x.path;
+          if (badOpSlug && itemSlug === badOpSlug) return false; 
+          const name = normalize(x.name);
+          const origin = normalize(x.origin_name || x.original_name);
+          return name.includes(keyword) || origin.includes(keyword) || keyword.includes(name) || keyword.includes(origin);
+        });
+        if (matched) {
+          const newOpResult = await fetchSource("op", matched.slug);
+          if (newOpResult.success) { opResult = newOpResult; break; }
+        }
+      } catch {}
+    }
   }
 
-  // Ưu tiên KKPhim, fallback sang NguồnC
+  // 5. KIỂM TRA KẾT QUẢ CUỐI CÙNG
+  const successResults = [kkResult, ncResult, opResult].filter((x) => x.success);
+  if (!successResults.length) {
+    throw new Error("Movie not found in all sources");
+  }
+
+  // Ưu tiên lấy thông tin phim từ KKPhim -> Ophim -> NguồnC
   const kkMovie = kkResult.success ? kkResult.movie : null;
+  const opMovie = opResult.success ? opResult.movie : null;
   const ncMovie = ncResult.success ? ncResult.movie : null;
 
   const extractNguoncCategory = (catObj: any, groupName: string) => {
     if (!catObj || typeof catObj !== "object") return null;
     for (const key in catObj) {
-      if (catObj[key]?.group?.name === groupName) {
-        return catObj[key].list || [];
-      }
+      if (catObj[key]?.group?.name === groupName) return catObj[key].list || [];
     }
     return null;
   };
@@ -393,26 +374,27 @@ export const getMovieDetailMultiSource = async (slug: string) => {
   };
 
   const movie = {
-    name: kkMovie?.name || ncMovie?.name,
-    origin_name: kkMovie?.origin_name || ncMovie?.original_name || ncMovie?.origin_name,
-    poster_url: kkMovie?.poster_url || ncMovie?.poster_url,
-    thumb_url: kkMovie?.thumb_url || ncMovie?.thumb_url,
-    slug: kkMovie?.slug || ncMovie?.slug,
-    content: kkMovie?.content || ncMovie?.description || ncMovie?.content,
-    lang: kkMovie?.lang || ncMovie?.language || ncMovie?.lang,
-    quality: kkMovie?.quality || ncMovie?.quality,
-    episode_current: kkMovie?.episode_current || ncMovie?.current_episode,
-    episode_total: kkMovie?.episode_total || ncMovie?.total_episodes,
-    category: kkMovie?.category || extractNguoncCategory(ncMovie?.category, "Thể loại"),
-    country: kkMovie?.country || extractNguoncCategory(ncMovie?.category, "Quốc gia"),
-    year: kkMovie?.year || extractNguoncYear(ncMovie?.category),
-    actor: kkMovie?.actor || ncMovie?.casts,
-    director: kkMovie?.director || ncMovie?.director,
-    time: kkMovie?.time || ncMovie?.time,
+    name: kkMovie?.name || opMovie?.name || ncMovie?.name,
+    origin_name: kkMovie?.origin_name || opMovie?.origin_name || ncMovie?.original_name || ncMovie?.origin_name,
+    poster_url: kkMovie?.poster_url || opMovie?.poster_url || ncMovie?.poster_url,
+    thumb_url: kkMovie?.thumb_url || opMovie?.thumb_url || ncMovie?.thumb_url,
+    slug: kkMovie?.slug || opMovie?.slug || ncMovie?.slug,
+    content: kkMovie?.content || opMovie?.content || ncMovie?.description || ncMovie?.content,
+    lang: kkMovie?.lang || opMovie?.lang || ncMovie?.language || ncMovie?.lang,
+    quality: kkMovie?.quality || opMovie?.quality || ncMovie?.quality,
+    episode_current: kkMovie?.episode_current || opMovie?.episode_current || ncMovie?.current_episode,
+    episode_total: kkMovie?.episode_total || opMovie?.episode_total || ncMovie?.total_episodes,
+    category: kkMovie?.category || opMovie?.category || extractNguoncCategory(ncMovie?.category, "Thể loại"),
+    country: kkMovie?.country || opMovie?.country || extractNguoncCategory(ncMovie?.category, "Quốc gia"),
+    year: kkMovie?.year || opMovie?.year || extractNguoncYear(ncMovie?.category),
+    actor: kkMovie?.actor || opMovie?.actor || ncMovie?.casts,
+    director: kkMovie?.director || opMovie?.director || ncMovie?.director,
+    time: kkMovie?.time || opMovie?.time || ncMovie?.time,
   };
 
   const servers: any[] = [];
 
+  // KKPhim Stream
   if (kkResult.success) {
     servers.push({
       source: "kk",
@@ -423,37 +405,44 @@ export const getMovieDetailMultiSource = async (slug: string) => {
     });
   }
 
+  // Ophim Stream
+  if (opResult.success) {
+    servers.push({
+      source: "op",
+      episodes: (opResult.episodes || []).map((ep: any) => ({
+        server_name: ep.server_name,
+        server_data: ep.server_data || ep.items || [],
+      })),
+    });
+  }
+
+  // Nguồn C Stream
   if (ncResult.success) {
     const parseNcEpisodes = (ncEpisodes: any[]) => {
       const parsedServers: any[] = [];
-      
       ncEpisodes.forEach((epGroup) => {
         if (epGroup.server_name) {
           const rawItems = epGroup.items || epGroup.server_data || [];
-          const normalizedItems = rawItems.map((item: any) => ({
-            name: item.name,
-            slug: item.slug,
-            embed: item.embed || item.link_embed,
-            m3u8: item.m3u8 || item.link_m3u8
-          }));
-          
           parsedServers.push({
             server_name: epGroup.server_name,
-            server_data: normalizedItems,
+            server_data: rawItems.map((item: any) => ({
+              name: item.name,
+              slug: item.slug,
+              embed: item.embed || item.link_embed,
+              m3u8: item.m3u8 || item.link_m3u8
+            })),
           });
-        } 
-        else if (typeof epGroup === 'object') {
+        } else if (typeof epGroup === 'object') {
           for (const key in epGroup) {
             if (Array.isArray(epGroup[key])) {
-              const normalizedItems = epGroup[key].map((item: any) => ({
-                name: item.name,
-                slug: item.slug,
-                embed: item.embed || item.link_embed,
-                m3u8: item.m3u8 || item.link_m3u8
-              }));
               parsedServers.push({
                 server_name: key,
-                server_data: normalizedItems,
+                server_data: epGroup[key].map((item: any) => ({
+                  name: item.name,
+                  slug: item.slug,
+                  embed: item.embed || item.link_embed,
+                  m3u8: item.m3u8 || item.link_m3u8
+                })),
               });
             }
           }
@@ -473,5 +462,4 @@ export const getMovieDetailMultiSource = async (slug: string) => {
     episodes: servers,
   };
 };
-
 
