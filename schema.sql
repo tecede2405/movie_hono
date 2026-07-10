@@ -38,3 +38,13 @@ CREATE TABLE IF NOT EXISTS donates (
   message TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS favorites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  movie_path TEXT NOT NULL,
+  movie_name TEXT,
+  image TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, movie_path)
+);
